@@ -1,0 +1,13 @@
+{
+  "name": "hepbwin",
+  "version": "1.0.0",
+  "description": "HepBwin - Hepatitis B Prevention App",
+  "scripts": {
+    "client": "cd client && npm start",
+    "server": "cd server && npm run dev",
+    "install-all": "npm install && cd client && npm install && cd ../server && npm install"
+  },
+  "keywords": ["hepatitis", "health", "mobile", "react-native"],
+  "author": "",
+  "license": "ISC"
+}

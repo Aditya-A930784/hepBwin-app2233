@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "HepBwin",
+    "slug": "hepbwin",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "platforms": ["ios", "android"],
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#F5F7FA"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.hepbwin.app"
+    },
+    "android": {
+      "package": "com.hepbwin.app"
+    }
+  }
+}
