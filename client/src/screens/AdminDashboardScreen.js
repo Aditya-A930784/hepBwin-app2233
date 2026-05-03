@@ -383,6 +383,23 @@ const AdminDashboardScreen = ({ navigation }) => {
             iconBg="#FFFBEB"
             onPress={() => navigation.navigate('DataExport')}
           />
+
+          <View style={styles.exportButtonRow}>
+            <TouchableOpacity
+              style={styles.exportMiniButton}
+              onPress={() => navigation.navigate('DataExport', { exportType: 'dose2', autoExport: true })}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.exportMiniButtonText}>Export Dose 2 List</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.exportMiniButton}
+              onPress={() => navigation.navigate('DataExport', { exportType: 'dose3', autoExport: true })}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.exportMiniButtonText}>Export Dose 3 List</Text>
+            </TouchableOpacity>
+          </View>
         </View>
           </>
         )}
@@ -530,6 +547,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginTop: 32,
     gap: 16,
+  },
+  exportButtonRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  exportMiniButton: {
+    flex: 1,
+    backgroundColor: '#EFF6FF',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  exportMiniButtonText: {
+    color: '#1D4ED8',
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   sectionTitle: {
     fontSize: 20,

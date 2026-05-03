@@ -17,6 +17,8 @@ import { StatusBar } from 'expo-status-bar';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { db, auth } from '../config/firebase';
 import { doc, setDoc, serverTimestamp, getDoc, addDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import DoseHistoryCard from '../components/DoseHistoryCard';
+import { getPatientDoseHistory, saveThirdDoseRecord } from '../services/vaccinationFlow';
 
 // Trophy Icon for completion
 const TrophyIcon = () => (
@@ -133,6 +135,9 @@ export default function ThirdDoseEntryScreen({ navigation, route }) {
   const [searchResults, setSearchResults] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
+  const [doseHistory, setDoseHistory] = useState(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Success animation state
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
@@ -147,6 +152,28 @@ export default function ThirdDoseEntryScreen({ navigation, route }) {
     }
     // If doseNumber === 3, stay on current screen (ThirdDoseEntry)
   };
+
+  useEffect(() => {
+    const loadDoseHistory = async () => {
+      if (!selectedPatient?.id) {
+        setDoseHistory(null);
+        return;
+      }
+
+      setHistoryLoading(true);
+      try {
+        const history = await getPatientDoseHistory(selectedPatient.id);
+        setDoseHistory(history);
+      } catch (error) {
+        console.error('Error loading dose history:', error);
+        setDoseHistory(null);
+      } finally {
+        setHistoryLoading(false);
+      }
+    };
+
+    loadDoseHistory();
+  }, [selectedPatient]);
 
   // Success animation effect
   useEffect(() => {
@@ -202,23 +229,32 @@ export default function ThirdDoseEntryScreen({ navigation, route }) {
       const patientsRef = collection(db, 'patients');
       const q = query(patientsRef);
       const querySnapshot = await getDocs(q);
-      
-      console.log('Total patients in database:', querySnapshot.size);
-      
+
+      const needle = searchText.toLowerCase();
       const results = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        const patientName = data.name || '';
-        
-        // Case-insensitive search
-        if (patientName.toLowerCase().includes(searchText.toLowerCase())) {
+
+      querySnapshot.forEach((documentSnapshot) => {
+        const data = documentSnapshot.data();
+        const patientName = (data.name || '').toLowerCase();
+        const department = (data.department || '').toLowerCase();
+        const designation = (data.designation || '').toLowerCase();
+        const patientDocId = (documentSnapshot.id || '').toLowerCase();
+        const patientRecordId = (data.patientId || '').toLowerCase();
+
+        if (
+          patientName.includes(needle) ||
+          department.includes(needle) ||
+          designation.includes(needle) ||
+          patientDocId.includes(needle) ||
+          patientRecordId.includes(needle)
+        ) {
           results.push({
-            id: doc.id,
+            id: documentSnapshot.id,
             ...data,
           });
         }
       });
-      
+
       console.log('Search results found:', results.length);
       
       setSearchResults(results);
@@ -262,6 +298,14 @@ export default function ThirdDoseEntryScreen({ navigation, route }) {
       return;
     }
 
+    if (!doseHistory?.dose2Date) {
+      Alert.alert(
+        'Dose 2 required',
+        'You can open Dose 3 and fill the details, but you can only submit after Dose 2 has been completed.'
+      );
+      return;
+    }
+
     const dose3Data = {
       patientId,
       thirdDoseDate,
@@ -272,12 +316,12 @@ export default function ThirdDoseEntryScreen({ navigation, route }) {
     };
 
     try {
-      const uid = 'igHZxc2fPieFyTz3KPYt'; // Fixed UID
-      
-      // Save to Firestore using UID as document ID in Thrid_dose collection
-      await setDoc(doc(db, 'Thrid_dose', uid), dose3Data);
-      
-      console.log('Third dose saved successfully to Thrid_dose collection with UID:', uid);
+      setIsSaving(true);
+
+      // Save to Firestore using patient ID as the document key
+      await saveThirdDoseRecord(dose3Data);
+
+      console.log('Third dose saved successfully for patient:', patientId);
 
       // Log coordinator activity for third dose entry
       try {
@@ -349,6 +393,8 @@ export default function ThirdDoseEntryScreen({ navigation, route }) {
       console.error('Error code:', error.code);
       console.error('Error message:', error.message);
       Alert.alert('Error', `Failed to save dose: ${error.message}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -419,6 +465,21 @@ export default function ThirdDoseEntryScreen({ navigation, route }) {
             Complete your Hepatitis B vaccination journey!
           </Text>
         </View>
+
+        {historyLoading ? (
+          <View style={styles.historyLoadingCard}>
+            <Text style={styles.historyLoadingText}>Loading dose history...</Text>
+          </View>
+        ) : doseHistory ? (
+          <DoseHistoryCard history={doseHistory} currentDose={3} title="Dose 3 History" />
+        ) : (
+          <View style={styles.historyHintCard}>
+            <Text style={styles.historyHintTitle}>Open Dose 3 and search a patient</Text>
+            <Text style={styles.historyHintText}>
+              You can open this form for any patient, but submission is allowed only after Dose 2 is completed.
+            </Text>
+          </View>
+        )}
 
         {/* Congratulations Box */}
         <View style={styles.congratsBox}>
@@ -591,13 +652,20 @@ export default function ThirdDoseEntryScreen({ navigation, route }) {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.saveButton}
+            style={[
+              styles.saveButton,
+              (!selectedPatient || !doseHistory?.dose2Date || isSaving) && styles.saveButtonDisabled,
+            ]}
             onPress={handleSave}
+            disabled={!selectedPatient || !doseHistory?.dose2Date || isSaving}
             activeOpacity={0.8}
           >
-            <Text style={styles.saveButtonText}>Complete ✓</Text>
+            <Text style={styles.saveButtonText}>Mark Dose 3 Complete</Text>
           </TouchableOpacity>
         </View>
+        {selectedPatient && !doseHistory?.dose2Date && (
+          <Text style={styles.lockedMessage}>Previous dose not completed</Text>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -734,6 +802,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#0f1923',
     lineHeight: 20,
+  },
+  historyLoadingCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  historyLoadingText: {
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  historyHintCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  historyHintTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  historyHintText: {
+    fontSize: 13,
+    color: '#64748B',
+    lineHeight: 18,
   },
   form: {
     marginBottom: 20,
@@ -915,11 +1015,21 @@ const styles = StyleSheet.create({
   // Success Animation Modal Styles
   successModalOverlay: {
     flex: 1,
+  saveButtonDisabled: {
+    backgroundColor: '#94A3B8',
+  },
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   successModalContent: {
+  lockedMessage: {
+    marginTop: 12,
+    textAlign: 'center',
+    color: '#EF4444',
+    fontSize: 13,
+    fontWeight: '600',
+  },
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
     padding: 40,

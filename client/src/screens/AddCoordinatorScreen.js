@@ -185,7 +185,7 @@ const AddCoordinatorScreen = ({ navigation }) => {
         } else if (error.code === 'auth/invalid-email') {
           errorMessage = 'Invalid email address format.';
         } else if (error.code === 'auth/network-request-failed') {
-          errorMessage = 'Network error. Please check your internet connection.';
+          errorMessage = 'Network error. Please check your current network connection.';
         } else {
           errorMessage = `Error: ${error.message || 'Failed to add coordinator. Please try again.'}`;
         }

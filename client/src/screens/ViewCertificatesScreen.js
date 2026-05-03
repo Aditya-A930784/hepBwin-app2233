@@ -82,7 +82,7 @@ export default function ViewCertificatesScreen({ navigation, route }) {
         const patientId = doc.id;
         const thirdDose = thirdDoseMap[patientId];
         
-        if (thirdDose) {
+        if (thirdDose && thirdDose.thirdDoseDate && !thirdDose.invalidDoseSequence && !thirdDose.isInvalidSequence) {
           completed.push({
             id: patientId,
             name: patientData.name,
@@ -250,7 +250,7 @@ export default function ViewCertificatesScreen({ navigation, route }) {
   };
 
   const handleDownload = async (patient) => {
-    if (!patient || !patient.thirdDoseData) {
+    if (!patient || !patient.thirdDoseData || !patient.thirdDoseData.thirdDoseDate || patient.thirdDoseData.invalidDoseSequence || patient.thirdDoseData.isInvalidSequence) {
       Alert.alert('Not Available', 'Certificate data is not available');
       return;
     }
@@ -280,7 +280,7 @@ export default function ViewCertificatesScreen({ navigation, route }) {
   };
 
   const handleShare = async (patient) => {
-    if (!patient || !patient.thirdDoseData) {
+    if (!patient || !patient.thirdDoseData || !patient.thirdDoseData.thirdDoseDate || patient.thirdDoseData.invalidDoseSequence || patient.thirdDoseData.isInvalidSequence) {
       Alert.alert('Not Available', 'Certificate data is not available for sharing');
       return;
     }
@@ -400,18 +400,30 @@ export default function ViewCertificatesScreen({ navigation, route }) {
                 {/* Action Buttons */}
                 <View style={styles.certActions}>
                   <TouchableOpacity
-                    style={styles.actionButton}
+                    style={[
+                      styles.actionButton,
+                      (!patient.thirdDoseData?.thirdDoseDate || patient.thirdDoseData?.invalidDoseSequence || patient.thirdDoseData?.isInvalidSequence) && styles.actionButtonDisabled,
+                    ]}
                     onPress={() => handleDownload(patient)}
+                    disabled={!patient.thirdDoseData?.thirdDoseDate || patient.thirdDoseData?.invalidDoseSequence || patient.thirdDoseData?.isInvalidSequence}
                   >
-                    <DownloadIcon />
-                    <Text style={styles.actionButtonText}>Download</Text>
+                    <View style={styles.actionButtonContent}>
+                      <DownloadIcon />
+                      <Text style={styles.actionButtonText}>Download</Text>
+                    </View>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={styles.actionButton}
+                    style={[
+                      styles.actionButton,
+                      (!patient.thirdDoseData?.thirdDoseDate || patient.thirdDoseData?.invalidDoseSequence || patient.thirdDoseData?.isInvalidSequence) && styles.actionButtonDisabled,
+                    ]}
                     onPress={() => handleShare(patient)}
+                    disabled={!patient.thirdDoseData?.thirdDoseDate || patient.thirdDoseData?.invalidDoseSequence || patient.thirdDoseData?.isInvalidSequence}
                   >
-                    <ShareIcon />
-                    <Text style={styles.actionButtonText}>Share</Text>
+                    <View style={styles.actionButtonContent}>
+                      <ShareIcon />
+                      <Text style={styles.actionButtonText}>Share</Text>
+                    </View>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -661,15 +673,30 @@ const styles = StyleSheet.create({
   },
   certActions: {
     flexDirection: 'row',
-    gap: 8,
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 4,
   },
   actionButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
     backgroundColor: '#005A9C',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  actionButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  actionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   actionButtonDisabled: {
     backgroundColor: '#9CA3AF',

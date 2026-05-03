@@ -17,6 +17,8 @@ import { StatusBar } from 'expo-status-bar';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { db, auth } from '../config/firebase';
 import { doc, setDoc, serverTimestamp, getDoc, addDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import DoseHistoryCard from '../components/DoseHistoryCard';
+import { fetchEligiblePatientsForDose, getPatientDoseHistory, saveSecondDoseRecord } from '../services/vaccinationFlow';
 
 // Syringe Icon
 const SyringeIcon = ({ filled = false }) => (
@@ -123,6 +125,10 @@ export default function SecondDoseEntryScreen({ navigation, route }) {
   const [searchResults, setSearchResults] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
+  const [eligiblePatients, setEligiblePatients] = useState([]);
+  const [doseHistory, setDoseHistory] = useState(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Success animation state
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
@@ -133,10 +139,49 @@ export default function SecondDoseEntryScreen({ navigation, route }) {
     if (doseNumber === 1) {
       navigation.navigate('FirstDoseEntry');
     } else if (doseNumber === 3) {
+      if (!doseHistory?.dose2Date) {
+        Alert.alert('Previous dose not completed', 'Dose 2 required');
+        return;
+      }
       navigation.navigate('ThirdDoseEntry');
     }
     // If doseNumber === 2, stay on current screen (SecondDoseEntry)
   };
+
+  useEffect(() => {
+    const loadEligiblePatients = async () => {
+      try {
+        const patients = await fetchEligiblePatientsForDose(2);
+        setEligiblePatients(patients);
+      } catch (error) {
+        console.error('Error loading eligible patients for dose 2:', error);
+      }
+    };
+
+    loadEligiblePatients();
+  }, []);
+
+  useEffect(() => {
+    const loadDoseHistory = async () => {
+      if (!selectedPatient?.id) {
+        setDoseHistory(null);
+        return;
+      }
+
+      setHistoryLoading(true);
+      try {
+        const history = await getPatientDoseHistory(selectedPatient.id);
+        setDoseHistory(history);
+      } catch (error) {
+        console.error('Error loading dose history:', error);
+        setDoseHistory(null);
+      } finally {
+        setHistoryLoading(false);
+      }
+    };
+
+    loadDoseHistory();
+  }, [selectedPatient]);
 
   // Success animation effect
   useEffect(() => {
@@ -189,26 +234,21 @@ export default function SecondDoseEntryScreen({ navigation, route }) {
 
     try {
       console.log('Searching for:', searchText);
-      const patientsRef = collection(db, 'patients');
-      const q = query(patientsRef);
-      const querySnapshot = await getDocs(q);
-      
-      console.log('Total patients in database:', querySnapshot.size);
-      
-      const results = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        const patientName = data.name || '';
-        
-        // Case-insensitive search
-        if (patientName.toLowerCase().includes(searchText.toLowerCase())) {
-          results.push({
-            id: doc.id,
-            ...data,
-          });
-        }
+      const results = eligiblePatients.filter((patient) => {
+        const patientName = (patient.name || '').toLowerCase();
+        const department = (patient.department || '').toLowerCase();
+        const designation = (patient.designation || '').toLowerCase();
+        const id = (patient.id || '').toLowerCase();
+        const needle = searchText.toLowerCase();
+
+        return (
+          patientName.includes(needle) ||
+          department.includes(needle) ||
+          designation.includes(needle) ||
+          id.includes(needle)
+        );
       });
-      
+
       console.log('Search results found:', results.length);
       
       setSearchResults(results);
@@ -252,6 +292,11 @@ export default function SecondDoseEntryScreen({ navigation, route }) {
       return;
     }
 
+    if (!doseHistory?.dose1Date) {
+      Alert.alert('Previous dose not completed', 'Dose 1 required');
+      return;
+    }
+
     const dose2Data = {
       patientId,
       secondDoseDate,
@@ -262,12 +307,12 @@ export default function SecondDoseEntryScreen({ navigation, route }) {
     };
 
     try {
-      const uid = 'tMH80pcO69zcJoomep4E'; // Fixed UID
-      
-      // Save to Firestore using UID as document ID in second_dose collection
-      await setDoc(doc(db, 'second_dose', uid), dose2Data);
-      
-      console.log('Second dose saved successfully to second_dose collection with UID:', uid);
+      setIsSaving(true);
+
+      // Save to Firestore using patient ID as the document key
+      await saveSecondDoseRecord(dose2Data);
+
+      console.log('Second dose saved successfully for patient:', patientId);
 
       // Log coordinator activity for second dose entry
       try {
@@ -337,6 +382,8 @@ export default function SecondDoseEntryScreen({ navigation, route }) {
       console.error('Error code:', error.code);
       console.error('Error message:', error.message);
       Alert.alert('Error', `Failed to save dose: ${error.message}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -410,6 +457,21 @@ export default function SecondDoseEntryScreen({ navigation, route }) {
             Record your second Hepatitis B vaccination dose
           </Text>
         </View>
+
+        {historyLoading ? (
+          <View style={styles.historyLoadingCard}>
+            <Text style={styles.historyLoadingText}>Loading dose history...</Text>
+          </View>
+        ) : doseHistory ? (
+          <DoseHistoryCard history={doseHistory} currentDose={2} title="Dose 2 History" />
+        ) : (
+          <View style={styles.historyHintCard}>
+            <Text style={styles.historyHintTitle}>Select an eligible patient</Text>
+            <Text style={styles.historyHintText}>
+              Dose 2 is available only for patients who already completed Dose 1.
+            </Text>
+          </View>
+        )}
 
         {/* Info Alert */}
         <View style={styles.alertBox}>
@@ -560,13 +622,20 @@ export default function SecondDoseEntryScreen({ navigation, route }) {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.saveButton}
+            style={[
+              styles.saveButton,
+              (!selectedPatient || !doseHistory?.dose1Date || isSaving) && styles.saveButtonDisabled,
+            ]}
             onPress={handleSave}
+            disabled={!selectedPatient || !doseHistory?.dose1Date || isSaving}
             activeOpacity={0.8}
           >
-            <Text style={styles.saveButtonText}>Save Dose</Text>
+            <Text style={styles.saveButtonText}>Mark Dose 2 Complete</Text>
           </TouchableOpacity>
         </View>
+        {selectedPatient && !doseHistory?.dose1Date && (
+          <Text style={styles.lockedMessage}>Previous dose not completed</Text>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -676,6 +745,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#0f1923',
     lineHeight: 20,
+  },
+  historyLoadingCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  historyLoadingText: {
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  historyHintCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  historyHintTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  historyHintText: {
+    fontSize: 13,
+    color: '#64748B',
+    lineHeight: 18,
   },
   form: {
     marginBottom: 20,
@@ -903,11 +1004,21 @@ const styles = StyleSheet.create({
   // Success Animation Modal Styles
   successModalOverlay: {
     flex: 1,
+  saveButtonDisabled: {
+    backgroundColor: '#94A3B8',
+  },
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   successModalContent: {
+  lockedMessage: {
+    marginTop: 12,
+    textAlign: 'center',
+    color: '#EF4444',
+    fontSize: 13,
+    fontWeight: '600',
+  },
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
     padding: 40,

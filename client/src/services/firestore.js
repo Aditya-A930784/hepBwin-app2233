@@ -1,5 +1,11 @@
 import { doc, setDoc, getDoc, collection, addDoc, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import {
+  fetchEligiblePatientsForDose,
+  getPatientDoseHistory,
+  saveSecondDoseRecord,
+  saveThirdDoseRecord,
+} from './vaccinationFlow';
 
 // Save user profile data
 export const saveUserProfile = async (userId, profileData) => {
@@ -105,4 +111,11 @@ export const savePatientInfo = async (patientData) => {
     console.error('Error details:', error.message, error.code);
     return { success: false, error: error.message };
   }
+};
+
+export {
+  fetchEligiblePatientsForDose,
+  getPatientDoseHistory,
+  saveSecondDoseRecord,
+  saveThirdDoseRecord,
 };

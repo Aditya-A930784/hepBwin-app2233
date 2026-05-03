@@ -11,7 +11,6 @@ import {
   Alert,
   Modal,
   Animated,
-  FlatList,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import Svg, { Path, Circle } from 'react-native-svg';
@@ -480,23 +479,18 @@ export default function FirstDoseEntryScreen({ navigation, route }) {
             {/* Autocomplete Dropdown */}
             {showDropdown && searchResults.length > 0 && (
               <View style={styles.dropdownContainer}>
-                <FlatList
-                  data={searchResults}
-                  keyExtractor={(item) => item.id}
-                  nestedScrollEnabled
-                  keyboardShouldPersistTaps="handled"
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={styles.dropdownItem}
-                      onPress={() => handlePatientSelect(item)}
-                    >
-                      <Text style={styles.dropdownItemName}>{item.name}</Text>
-                      <Text style={styles.dropdownItemDetails}>
-                        {item.department} • {item.designation}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                />
+                {searchResults.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.dropdownItem}
+                    onPress={() => handlePatientSelect(item)}
+                  >
+                    <Text style={styles.dropdownItemName}>{item.name}</Text>
+                    <Text style={styles.dropdownItemDetails}>
+                      {item.department} • {item.designation}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
             )}
           </View>

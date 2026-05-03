@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import * as Sharing from 'expo-sharing';
 import { db } from '../config/firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
+import { getDoseExportData } from '../services/vaccinationFlow';
 
 // Custom Icons
 const ChevronLeftIcon = ({ size = 24, color = "#FFFFFF" }) => (
@@ -120,16 +121,26 @@ const BarChartIcon = ({ size = 24, color = "#3B82F6" }) => (
   </Svg>
 );
 
-const DataExportScreen = ({ navigation }) => {
+const DataExportScreen = ({ navigation, route }) => {
   const [selectedDataType, setSelectedDataType] = useState('all');
   const [selectedFormat, setSelectedFormat] = useState('excel');
   const [isExporting, setIsExporting] = useState(false);
   const [totalRecords, setTotalRecords] = useState(0);
   const [loadingCount, setLoadingCount] = useState(true);
+  const autoExportedRef = useRef(false);
+  const exportType = route?.params?.exportType || 'all';
+  const autoExport = route?.params?.autoExport || false;
 
   useEffect(() => {
     fetchRecordCount();
   }, []);
+
+  useEffect(() => {
+    if (autoExport && !autoExportedRef.current) {
+      autoExportedRef.current = true;
+      handleExport();
+    }
+  }, [autoExport, exportType]);
 
   const fetchRecordCount = async () => {
     try {
@@ -159,28 +170,7 @@ const DataExportScreen = ({ navigation }) => {
 
     try {
       console.log('Starting data export...');
-      
-      // Fetch all patients data
-      const patientsRef = collection(db, 'patients');
-      const patientsSnapshot = await getDocs(patientsRef);
-      
-      // Fetch second dose data
-      const secondDoseRef = collection(db, 'second_dose');
-      const secondDoseSnapshot = await getDocs(secondDoseRef);
-      const secondDoseMap = {};
-      secondDoseSnapshot.forEach((doc) => {
-        const data = doc.data();
-        secondDoseMap[data.patientId] = data;
-      });
-
-      // Fetch third dose data
-      const thirdDoseRef = collection(db, 'Thrid_dose');
-      const thirdDoseSnapshot = await getDocs(thirdDoseRef);
-      const thirdDoseMap = {};
-      thirdDoseSnapshot.forEach((doc) => {
-        const data = doc.data();
-        thirdDoseMap[data.patientId] = data;
-      });
+      const { patients, secondDoseMap, thirdDoseMap } = await getDoseExportData(exportType);
 
       // Prepare data for Excel
       const excelData = [];
@@ -205,9 +195,8 @@ const DataExportScreen = ({ navigation }) => {
       ]);
       
       // Add data rows
-      patientsSnapshot.forEach((doc) => {
-        const patient = doc.data();
-        const patientId = doc.id;
+      patients.forEach((patient) => {
+        const patientId = patient.id;
         const secondDose = secondDoseMap[patientId];
         const thirdDose = thirdDoseMap[patientId];
         
@@ -292,14 +281,14 @@ const DataExportScreen = ({ navigation }) => {
         setIsExporting(false);
         Alert.alert(
           'Export Successful',
-          `Vaccination records exported successfully!\n\nTotal records: ${patientsSnapshot.size}\n\nThe file is in proper Excel format (.xlsx) and can be opened in Microsoft Excel, Google Sheets, or any spreadsheet application.`,
+          `Vaccination records exported successfully!\n\nTotal records: ${patients.length}\n\nThe file is in proper Excel format (.xlsx) and can be opened in Microsoft Excel, Google Sheets, or any spreadsheet application.`,
           [{ text: 'OK' }]
         );
       } else {
         setIsExporting(false);
         Alert.alert(
           'Export Created',
-          `File saved to: ${fileUri}\n\nTotal records: ${patientsSnapshot.size}`,
+          `File saved to: ${fileUri}\n\nTotal records: ${patients.length}`,
           [{ text: 'OK' }]
         );
       }
