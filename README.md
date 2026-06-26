@@ -8,7 +8,7 @@ A full-stack mobile application built with React Native and Node.js to help user
 
 ```
 hepbwin/
-├── client/              # React Native m.obile app
+├── client/              # React Native mobile app
 │   ├── src/
 │   │   ├── screens/     # Screen components
 │   │   ├── components/  # Reusable components
