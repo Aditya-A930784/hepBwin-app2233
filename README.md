@@ -1,4 +1,4 @@
-# HepBwin - Hepatitis B Prevention Ap
+# HepBwin - Hepatitis B Prevention App
 
 **Your Partner in Hepatitis B Prevention**
 
